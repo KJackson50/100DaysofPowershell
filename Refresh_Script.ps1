@@ -1,6 +1,26 @@
 ﻿# Set Execution Policy to Bypass for the session
 Set-ExecutionPolicy Bypass -Scope Process -Force
 
+# Check if winget is installed, and attempt to install it if not
+if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Write-Host "winget is not installed. Attempting to install via Microsoft Store..."
+
+    # Use PowerShell to invoke the installation of winget (App Installer)
+    try {
+        # This command opens the Microsoft Store page for App Installer
+        Start-Process "ms-windows-store://pdp/?productid=9nblggh4nns1" -Wait
+        
+        Write-Host "Please install the App Installer package from the Microsoft Store to get winget."
+        Write-Host "After installation, please rerun this script."
+        exit 1  # Exit the script because winget is not installed yet
+    } catch {
+        Handle-Error "winget Installation" $_.Exception.Message
+        exit 1  # Exit script if there was an error attempting to install winget
+    }
+} else {
+    Write-Host "winget is already installed."
+}
+
 # Function to handle errors and log them
 function Handle-Error {
     param(
@@ -28,7 +48,7 @@ if (Test-Path $networkPath) {
         Write-Host "Logging to network path: $logFile"
         $transcriptStarted = $true
     } catch {
-        Handle-Error "Logging Setup" "Unable to start logging to $logFile $($_.Exception.Message)"
+        Handle-Error "Logging Setup" "Unable to start logging to $logFile: $($_.Exception.Message)"
     }
 } else {
     Write-Host "Network path $networkPath is not available. Skipping logging."
@@ -64,6 +84,7 @@ function Update-WingetPrograms {
         
         # Loop through each program and attempt to update
         foreach ($program in $programsToUpdate) {
+            Write-Host "Checking for updates for $program..."
             winget upgrade --id "$program" --silent
         }
 
@@ -103,8 +124,8 @@ function Clear-BrowserCache {
         )
         foreach ($cachePath in $browserCachePaths) {
             if (Test-Path $cachePath) {
+                Write-Host "Clearing cache for: $cachePath"
                 Remove-Item -Path "$cachePath\*" -Recurse -Force
-                Write-Host "Cleared cache for: $cachePath"
             } else {
                 Write-Host "Cache path not found: $cachePath"
             }
@@ -178,6 +199,7 @@ function Update-Windows {
 
 # Main process: call all functions
 try {
+    Write-Host "Starting main process..."
     Install-PSWindowsUpdate
     Update-WingetPrograms
     Perform-DiskCleanup
@@ -187,6 +209,7 @@ try {
     Optimize-SystemSettings
     Clean-Registry
     Update-Windows
+    Write-Host "Main process completed successfully."
 } catch {
     Handle-Error "Main Process" $_.Exception.Message
 }
