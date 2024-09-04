@@ -21,6 +21,35 @@ if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
     Write-Host "winget is already installed."
 }
 
+# Function to check and update 'App Installer' via Microsoft Store
+function Update-AppInstaller {
+    try {
+        # Check if 'App Installer' is installed
+        $appInstaller = Get-AppxPackage -Name Microsoft.DesktopAppInstaller -ErrorAction SilentlyContinue
+        
+        if ($appInstaller) {
+            Write-Host "App Installer is installed. Ensuring it is up-to-date..."
+
+            # Open Microsoft Store to update 'App Installer' (ProductID for App Installer)
+            Start-Process "ms-windows-store://pdp/?productid=9nblggh4nns1" -Wait
+
+            Write-Host "Please ensure the App Installer is updated via the Microsoft Store."
+        } else {
+            Write-Host "App Installer is not installed. Installing via Microsoft Store..."
+            
+            # Open Microsoft Store to install 'App Installer'
+            Start-Process "ms-windows-store://pdp/?productid=9nblggh4nns1" -Wait
+
+            Write-Host "Please install the App Installer package from the Microsoft Store."
+            exit 1  # Exit the script because 'App Installer' is not installed yet
+        }
+    } catch {
+        Handle-Error "App Installer Update" $_.Exception.Message
+        exit 1  # Exit script if there was an error
+    }
+}
+
+
 # Function to handle errors and log them
 function Handle-Error {
     param(
@@ -31,7 +60,7 @@ function Handle-Error {
 }
 
 # Define the network path where the log file will be saved
-$networkPath = "\\NetworkDrive\SharedFolder"
+$networkPath = "\\SHC0012LT119\Refresh"
 
 # Get the hostname of the computer
 $hostname = $env:COMPUTERNAME
@@ -48,7 +77,7 @@ if (Test-Path $networkPath) {
         Write-Host "Logging to network path: $logFile"
         $transcriptStarted = $true
     } catch {
-        Handle-Error "Logging Setup" "Unable to start logging to $logFile: $($_.Exception.Message)"
+        Handle-Error "Logging Setup" "Unable to start logging to $logFile $($_.Exception.Message)"
     }
 } else {
     Write-Host "Network path $networkPath is not available. Skipping logging."
@@ -69,29 +98,21 @@ function Install-PSWindowsUpdate {
     }
 }
 
-# Function to update specific programs (Adobe Reader, LibreOffice, Chrome, and Zoom) using winget
+# Function to update all programs using winget
 function Update-WingetPrograms {
     try {
-        Write-Host "Updating Adobe Reader, LibreOffice, Chrome, and Zoom via winget..."
+        Write-Host "Updating all programs via winget..."
         
-        # Specific winget IDs for the programs to update
-        $programsToUpdate = @(
-            "Adobe.Acrobat.Reader.64-bit", 
-            "TheDocumentFoundation.LibreOffice", 
-            "Google.Chrome", 
-            "Zoom.Zoom"
-        )
-        
-        # Loop through each program and attempt to update
-        foreach ($program in $programsToUpdate) {
-            Write-Host "Checking for updates for $program..."
-            winget upgrade --id "$program" --silent
-        }
+        # Command to upgrade all programs
+        winget upgrade --all --silent
+
+        Write-Host "All programs have been updated successfully."
 
     } catch {
         Handle-Error "Winget Upgrade" $_.Exception.Message
     }
 }
+
 
 # Function to perform disk cleanup
 function Perform-DiskCleanup {
@@ -117,11 +138,17 @@ function Optimize-Drives {
 function Clear-BrowserCache {
     try {
         Write-Host "Clearing browser cache..."
+        
+        # Corrected cache paths for different browsers
         $browserCachePaths = @(
             "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache",
-            "$env:APPDATA\Mozilla\Firefox\Profiles",
-            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache"
+            "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Code Cache",
+            "$env:APPDATA\Mozilla\Firefox\Profiles\*\cache2",
+            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache",
+            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Code Cache"
         )
+        
+        # Loop through each cache path and remove its contents
         foreach ($cachePath in $browserCachePaths) {
             if (Test-Path $cachePath) {
                 Write-Host "Clearing cache for: $cachePath"
@@ -130,10 +157,12 @@ function Clear-BrowserCache {
                 Write-Host "Cache path not found: $cachePath"
             }
         }
+
     } catch {
         Handle-Error "Clear Browser Cache" $_.Exception.Message
     }
 }
+
 
 # Function to update group policies
 function Update-GroupPolicies {
@@ -200,6 +229,7 @@ function Update-Windows {
 # Main process: call all functions
 try {
     Write-Host "Starting main process..."
+    Update-AppInstaller
     Install-PSWindowsUpdate
     Update-WingetPrograms
     Perform-DiskCleanup
