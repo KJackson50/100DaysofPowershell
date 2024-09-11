@@ -1,55 +1,6 @@
 ﻿# Set Execution Policy to Bypass for the session
 Set-ExecutionPolicy Bypass -Scope Process -Force
 
-# Check if winget is installed, and attempt to install it if not
-if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Host "winget is not installed. Attempting to install via Microsoft Store..."
-
-    # Use PowerShell to invoke the installation of winget (App Installer)
-    try {
-        # This command opens the Microsoft Store page for App Installer
-        Start-Process "ms-windows-store://pdp/?productid=9nblggh4nns1" -Wait
-        
-        Write-Host "Please install the App Installer package from the Microsoft Store to get winget."
-        Write-Host "After installation, please rerun this script."
-        exit 1  # Exit the script because winget is not installed yet
-    } catch {
-        Handle-Error "winget Installation" $_.Exception.Message
-        exit 1  # Exit script if there was an error attempting to install winget
-    }
-} else {
-    Write-Host "winget is already installed."
-}
-
-# Function to check and update 'App Installer' via Microsoft Store
-function Update-AppInstaller {
-    try {
-        # Check if 'App Installer' is installed
-        $appInstaller = Get-AppxPackage -Name Microsoft.DesktopAppInstaller -ErrorAction SilentlyContinue
-        
-        if ($appInstaller) {
-            Write-Host "App Installer is installed. Ensuring it is up-to-date..."
-
-            # Open Microsoft Store to update 'App Installer' (ProductID for App Installer)
-            Start-Process "ms-windows-store://pdp/?productid=9nblggh4nns1" -Wait
-
-            Write-Host "Please ensure the App Installer is updated via the Microsoft Store."
-        } else {
-            Write-Host "App Installer is not installed. Installing via Microsoft Store..."
-            
-            # Open Microsoft Store to install 'App Installer'
-            Start-Process "ms-windows-store://pdp/?productid=9nblggh4nns1" -Wait
-
-            Write-Host "Please install the App Installer package from the Microsoft Store."
-            exit 1  # Exit the script because 'App Installer' is not installed yet
-        }
-    } catch {
-        Handle-Error "App Installer Update" $_.Exception.Message
-        exit 1  # Exit script if there was an error
-    }
-}
-
-
 # Function to handle errors and log them
 function Handle-Error {
     param(
@@ -60,7 +11,7 @@ function Handle-Error {
 }
 
 # Define the network path where the log file will be saved
-$networkPath = "\\SHC0012LT119\Refresh"
+$networkPath = "\\NetworkDrive\SharedFolder"
 
 # Get the hostname of the computer
 $hostname = $env:COMPUTERNAME
@@ -83,81 +34,164 @@ if (Test-Path $networkPath) {
     Write-Host "Network path $networkPath is not available. Skipping logging."
 }
 
-# Ensure PSWindowsUpdate is installed and imported
+# Function to check and install PSWindowsUpdate if it's not installed
 function Install-PSWindowsUpdate {
     try {
-        Write-Host "Checking for PSWindowsUpdate module..."
+        Write-Host "Checking for PSWindowsUpdate module installation..." -ForegroundColor Cyan
+        
+        # Check if the module is installed
         if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
-            Write-Host "Installing PSWindowsUpdate module..."
+            Write-Host "PSWindowsUpdate is not installed. Installing now..." -ForegroundColor Yellow
+            
+            # Install the module
             Install-Module -Name PSWindowsUpdate -Force -Confirm:$false
+            
+            # Confirm installation
+            if (Get-Module -ListAvailable -Name PSWindowsUpdate) {
+                Write-Host "PSWindowsUpdate module installed successfully." -ForegroundColor Green
+            } else {
+                throw "Failed to install PSWindowsUpdate module."
+            }
+        } else {
+            Write-Host "PSWindowsUpdate is already installed." -ForegroundColor Green
         }
+        
+        # Import the module
+        Write-Host "Importing PSWindowsUpdate module..." -ForegroundColor Cyan
         Import-Module PSWindowsUpdate -ErrorAction Stop
-        Write-Host "PSWindowsUpdate module installed and imported successfully."
+        Write-Host "PSWindowsUpdate module imported successfully." -ForegroundColor Green
+        
     } catch {
         Handle-Error "PSWindowsUpdate Installation/Import" $_.Exception.Message
     }
 }
 
-# Function to update all programs using winget
+# Function to check and update "App Installer" from the Microsoft Store
+function Update-AppInstaller {
+    try {
+        Write-Host "Checking for Microsoft App Installer package..." -ForegroundColor Cyan
+
+        # Check if App Installer is installed
+        $appInstaller = Get-AppxPackage -Name Microsoft.DesktopAppInstaller
+        
+        if ($null -ne $appInstaller) {
+            Write-Host "App Installer is installed, checking for updates..." -ForegroundColor Green
+
+            # Force an update check by starting the Microsoft Store App Installer
+            Start-Process "ms-windows-store://pdp/?productid=9NBLGGH4NNS1" -Wait
+            
+            Write-Host "App Installer has been updated via Microsoft Store." -ForegroundColor Green
+        } else {
+            Write-Host "App Installer is not installed, please install it manually from the Microsoft Store." -ForegroundColor Yellow
+        }
+    } catch {
+        Handle-Error "App Installer Update" $_.Exception.Message
+    }
+}
+
+
+# Function to update specific programs (Adobe Reader, LibreOffice, Chrome, and Zoom) using winget
 function Update-WingetPrograms {
     try {
-        Write-Host "Updating all programs via winget..."
+        Write-Host "Checking if winget is available..." -ForegroundColor Cyan
         
-        # Command to upgrade all programs
-        winget upgrade --all --silent
+        # Check if winget is installed
+        if (-not (Get-Command -Name winget -ErrorAction SilentlyContinue)) {
+            throw "winget is not installed or not available in this session."
+        }
 
-        Write-Host "All programs have been updated successfully."
-
+        Write-Host "Winget is available. Starting program updates..." -ForegroundColor Green
+        
+        # Specific winget IDs for the programs to update
+        $programsToUpdate = @(
+            "Adobe.Acrobat.Reader.64-bit", 
+            "TheDocumentFoundation.LibreOffice", 
+            "Google.Chrome", 
+            "Zoom.Zoom"
+        )
+        
+        # Loop through each program and attempt to update
+        foreach ($program in $programsToUpdate) {
+            try {
+                Write-Host "Attempting to update $program via winget..." -ForegroundColor Yellow
+                winget upgrade --id "$program" --silent
+                Write-Host "$program updated successfully." -ForegroundColor Green
+            } catch {
+                Handle-Error "$program Update" $_.Exception.Message
+            }
+        }
+        
     } catch {
         Handle-Error "Winget Upgrade" $_.Exception.Message
     }
 }
 
-
-# Function to perform disk cleanup
 function Perform-DiskCleanup {
     try {
-        Write-Host "Running Disk Cleanup..."
-        Start-Process "cleanmgr.exe" "/verylowdisk"
+        Write-Host "Configuring Disk Cleanup options..." -ForegroundColor Cyan
+        # Configure Disk Cleanup options (run this once to set it up)
+        Start-Process "cleanmgr.exe" "/sageset:1" -Wait
+
+        Write-Host "Running Disk Cleanup with configured options..." -ForegroundColor Yellow
+        # Run Disk Cleanup with the previously configured options
+        Start-Process "cleanmgr.exe" "/sagerun:1" -Wait
+        
+        Write-Host "Disk Cleanup completed successfully." -ForegroundColor Green
     } catch {
         Handle-Error "Disk Cleanup" $_.Exception.Message
     }
 }
 
-# Function to optimize or defragment SSD/HDD
+
+
 function Optimize-Drives {
     try {
-        Write-Host "Optimizing drives..."
+        Write-Host "Checking drive type for optimization..." -ForegroundColor Cyan
+        
+        # Get the media type (HDD/SSD)
+        $drive = Get-PhysicalDisk | Where-Object { $_.DeviceID -eq (Get-Partition -DriveLetter C).DiskNumber }
+        
+        if ($drive.MediaType -eq "SSD") {
+            Write-Host "Drive C is an SSD. Optimizing using TRIM..." -ForegroundColor Yellow
+        } else {
+            Write-Host "Drive C is an HDD. Defragmenting the drive..." -ForegroundColor Yellow
+        }
+        
+        # Run Optimize-Volume command
         Optimize-Volume -DriveLetter C -Verbose
+        
+        Write-Host "Drive optimization completed successfully." -ForegroundColor Green
     } catch {
         Handle-Error "Drive Optimization" $_.Exception.Message
     }
 }
 
-# Function to clear browser cache by deleting cache directories
+
 function Clear-BrowserCache {
     try {
-        Write-Host "Clearing browser cache..."
+        Write-Host "Clearing browser cache..." -ForegroundColor Cyan
         
-        # Corrected cache paths for different browsers
+        # Define browser cache paths
         $browserCachePaths = @(
             "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache",
-            "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Code Cache",
-            "$env:APPDATA\Mozilla\Firefox\Profiles\*\cache2",
-            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache",
-            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Code Cache"
+            "$env:APPDATA\Mozilla\Firefox\Profiles",
+            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache"
         )
         
-        # Loop through each cache path and remove its contents
+        # Iterate through cache paths
         foreach ($cachePath in $browserCachePaths) {
             if (Test-Path $cachePath) {
-                Write-Host "Clearing cache for: $cachePath"
-                Remove-Item -Path "$cachePath\*" -Recurse -Force
+                Write-Host "Clearing cache for: $cachePath" -ForegroundColor Yellow
+                try {
+                    Remove-Item -Path "$cachePath\*" -Recurse -Force
+                    Write-Host "Successfully cleared cache for: $cachePath" -ForegroundColor Green
+                } catch {
+                    Handle-Error "Cache Clearing for $cachePath" $_.Exception.Message
+                }
             } else {
-                Write-Host "Cache path not found: $cachePath"
+                Write-Host "Cache path not found: $cachePath" -ForegroundColor Red
             }
         }
-
     } catch {
         Handle-Error "Clear Browser Cache" $_.Exception.Message
     }
@@ -228,9 +262,8 @@ function Update-Windows {
 
 # Main process: call all functions
 try {
-    Write-Host "Starting main process..."
-    Update-AppInstaller
     Install-PSWindowsUpdate
+    Update-AppInstaller
     Update-WingetPrograms
     Perform-DiskCleanup
     Optimize-Drives
@@ -239,7 +272,6 @@ try {
     Optimize-SystemSettings
     Clean-Registry
     Update-Windows
-    Write-Host "Main process completed successfully."
 } catch {
     Handle-Error "Main Process" $_.Exception.Message
 }
