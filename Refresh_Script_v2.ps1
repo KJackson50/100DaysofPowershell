@@ -101,7 +101,7 @@ function Update-AppInstaller {
 
             # Add a wait loop to ensure the App Installer update completes
             Write-Host "Waiting for App Installer update to complete..."
-            Start-Sleep -Seconds 10  # Initial wait
+            Start-Sleep -Seconds 20  # Initial wait
 
             # Check if App Installer is still running
             while (Get-Process -Name "WinStore.App" -ErrorAction SilentlyContinue) {
@@ -265,31 +265,34 @@ function Clean-Registry {
     }
 }
 
-# Updated function to perform Windows Updates (includes drivers)
+#Updates Windows using powershell module
 function Update-Windows {
     try {
-        Write-Host "Checking for available Windows updates..."
+        Write-Host "Checking for available Windows updates..." -ForegroundColor Cyan
 
         # Get the list of available updates
         $updates = Get-WindowsUpdate -Verbose
         
+        # Check if any updates were found
         if ($updates.Count -eq 0) {
-            Write-Host "No Windows updates available."
+            Write-Host "No Windows updates available." -ForegroundColor Green
         } else {
-            Write-Host "The following updates are available:"
+            Write-Host "The following updates are available:" -ForegroundColor Yellow
             $updates | ForEach-Object { Write-Host $_.Title }
 
             # Install the available updates
-            Write-Host "Installing Windows updates..."
-            $updates | Get-WindowsUpdate -Install -AcceptAll -IgnoreReboot -Verbose
+            Write-Host "Installing Windows updates and ignoring reboot requests..." -ForegroundColor Cyan
+            $updates | Install-WindowsUpdate -AcceptAll -IgnoreReboot -Verbose
 
-            Write-Host "Windows updates installed successfully."
+            Write-Host "Windows updates installed successfully." -ForegroundColor Green
         }
         
     } catch {
         Handle-Error "Windows Update" $_.Exception.Message
     }
 }
+
+
 
 # Main process: call all functions
 try {
@@ -300,10 +303,11 @@ try {
     Perform-DiskCleanup
     Optimize-Drives
     Clear-BrowserCache
+    Update-Windows
     Update-GroupPolicies
     Optimize-SystemSettings
     Clean-Registry
-    Update-Windows
+    
 } catch {
     Handle-Error "Main Process" $_.Exception.Message
 }
