@@ -281,7 +281,7 @@ function Update-Windows {
 
             # Install the available updates
             Write-Host "Installing Windows updates..."
-            $updates | Install-WindowsUpdate -AcceptAll -IgnoreReboot -Verbose
+            $updates | Get-WindowsUpdate -Install -AcceptAll -IgnoreReboot -Verbose
 
             Write-Host "Windows updates installed successfully."
         }
