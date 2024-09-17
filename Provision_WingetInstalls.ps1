@@ -1,4 +1,4 @@
-﻿# Function to reset the Microsoft Store
+# Function to reset the Microsoft Store
 function Reset-MicrosoftStore {
     try {
         Write-Host "Resetting Microsoft Store..." -ForegroundColor Yellow
@@ -50,9 +50,10 @@ function Update-AppInstaller {
     }
 }
 
+#Function to use winget to install needed applications
 function Install-Applications {
     param (
-        [string[]]$AppsToInstall = @("Google Chrome", "LibreOffice", "PDF Sam Basic", "Adobe Acrobat Reader DC", "FortiClient VPN")
+        [string[]]$AppsToInstall = @("Google.Chrome.EXE", "TheDocumentFoundation.LibreOffice", "PDFsam.PDFsam", "Adobe.Acrobat.Reader.64-bit", "Fortinet.FortiClientVPN")
     )
 
     foreach ($App in $AppsToInstall) {
@@ -69,9 +70,40 @@ function Install-Applications {
     }
 }
 
+#Function to move source folder to C drive
+function Copy-FolderFromUSBToCDrive {
+    param (
+        [string]$SourceFolder = "D:\Scripts\Source",  # Path to the folder on the USB drive
+        [string]$DestinationFolder = "C:\"  # Path where the folder will be copied to on the C drive
+    )
+
+    # Check if the source folder exists on the USB drive
+    if (-not (Test-Path -Path $SourceFolder)) {
+        Write-Host "The source folder does not exist: $SourceFolder" -ForegroundColor Red
+        return
+    }
+
+    # Ensure the destination folder exists or create it
+    if (-not (Test-Path -Path $DestinationFolder)) {
+        Write-Host "Creating destination folder: $DestinationFolder"
+        New-Item -Path $DestinationFolder -ItemType Directory
+    }
+
+    # Copy the folder from USB to the C drive
+    try {
+        Copy-Item -Path $SourceFolder\* -Destination $DestinationFolder -Recurse -Force
+        Write-Host "Folder successfully copied from $SourceFolder to $DestinationFolder" -ForegroundColor Green
+    } catch {
+        Write-Host "Error copying folder: $_" -ForegroundColor Red
+    }
+}
+
+
+
 
 
 
 Reset-MicrosoftStore
 Update-AppInstaller
 Install-Applications
+Copy-FolderFromUSBToCDrive
