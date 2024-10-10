@@ -1,0 +1,9 @@
+# Get the specific Store apps (Microsoft.DesktopAppInstaller and Microsoft.Winget.Source)
+$appsToUpdate = Get-AppxPackage | Where-Object { 
+    $_.Name -eq "Microsoft.DesktopAppInstaller" -or $_.Name -eq "Microsoft.Winget.Source" 
+}
+
+# Re-register (update) the apps individually
+foreach ($app in $appsToUpdate) {
+    Add-AppxPackage -Register "$($app.InstallLocation)\AppxManifest.xml" -DisableDevelopmentMode
+}
